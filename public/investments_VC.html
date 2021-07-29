@@ -1,0 +1,203 @@
+<html>
+<script src='https://d3js.org/d3.v5.min.js'></script>
+<script src="https://d3js.org/d3-array.v2.min.js"></script>
+<script src="https://d3js.org/d3-scale-chromatic.v0.3.min.js"></script>
+<body onload='init()'>
+    <div id='interactive'>
+        <label>Start Year</label><select id='year_start'></select>
+        <label>End Year</label><select id='year_end'></select>
+        <button onclick='update_charts()'>Update</button>
+    </div>
+    <div id='charts'>
+        <svg id='bubble_chart'></svg>
+        <svg id='bar_chart'></svg>
+    </div>
+<script>
+var g_format_usd = d3.format(',');
+var g_color_scale = d3.scaleOrdinal(d3.schemeCategory10);
+
+var g_width = 600;
+var g_height = 600;
+var g_year_min = 2000;
+var g_year_max = 2014;
+var g_year_min_cur = g_year_min;
+var g_year_max_cur = g_year_max;
+var g_country_code = 'USA';
+var g_market_top_max = 30;
+
+var g_fund_total_by_state;
+var g_market_topN;
+
+function display_market_data() {
+    var svg = d3.select('#bar_chart')
+        .attr('width', g_width)
+        .attr('height', g_height);
+    svg.selectAll('g').remove();
+
+    market_top_max = g_market_topN.slice(0, g_market_top_max)
+    fund_max = d3.max(market_top_max, d => d[1])
+    console.log('market_top_max', market_top_max)
+    console.log('fund_max', fund_max);
+
+    var margin = ({top: 30, left: 120, bottom: 0, right: 0});
+    var width = g_width;// - margin.left - margin.right;
+    var height = g_height;// - margin.top - margin.bottom;
+    var x_scale = d3.scaleLinear().domain([0, fund_max]).range([margin.left, width - margin.right]);
+    var y_scale = d3.scaleBand().domain(d3.range(g_market_top_max)).range([margin.top, height - margin.bottom]).padding(0.1);
+
+    //
+    // Bar chart
+    //
+    svg.append('g')
+        .selectAll('rect')
+        .data(market_top_max)
+        .join('rect')
+        .attr('x', x_scale(0))
+        .attr('y', (d, i) => y_scale(i))
+        .attr('height', y_scale.bandwidth())
+        .attr('width', d => x_scale(d[1]) - x_scale(0))
+        .attr("fill", function(d, i) { return g_color_scale(i); });
+
+    //
+    // x, y axis
+    //
+    svg.append('g')
+        .attr('transform', "translate(0, " + margin.top + ")")
+        .call(d3.axisTop(x_scale).ticks(10, "s"))
+    svg.append('g')
+        .attr('transform', "translate(" + margin.left + ", 0)")
+        .call(d3.axisLeft(y_scale).tickFormat(i => market_top_max[i][0]))
+
+    //
+    // Print total fund usd
+    //
+    svg.append('g')
+        .attr('fill', 'white')
+        .attr('text-anchor', 'end')
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', 10)
+        .selectAll('text')
+        .data(market_top_max)
+        .join('text')
+        .attr('x', d => x_scale(d[1]))
+        .attr('y', (d, i) => y_scale(i) + y_scale.bandwidth() / 2)
+        .attr('dy', "0.35em")
+        .attr('dx', -4)
+        .text(d => '$' + g_format_usd(d[1]))
+        .call(text => text.filter(d => x_scale(d[1]) - x_scale(0) < 80)
+        .attr('dx', +4)
+        .attr('fill', "black")
+        .attr('text-anchor', 'start'));
+}
+
+function display_state_data() {
+    var pack_layout = d3.pack()
+        .size([g_width, g_height])
+        .padding(0.1);
+
+    var nodes = pack_layout(d3.hierarchy({children: g_fund_total_by_state}).sum(d => d[1]));
+    console.log('leaves', nodes.leaves());
+
+    var svg = d3.select('#bubble_chart')
+        .attr('width', g_width)
+        .attr('height', g_height);
+    // clear all g..
+    svg.selectAll('g').remove();
+
+    var node = svg.selectAll('g')
+        .data(nodes.leaves())
+        .join('g')
+        .attr('transform', d => `translate(${d.x + 1}, ${d.y + 1})`);
+    console.log('node', node);
+
+    node.append('title')
+        .text(function(d) { return '$' + g_format_usd(d.data[1]); });
+
+    node.append('circle')
+        .attr('r', d => d.r)
+        .style('fill', function(d, i) { return g_color_scale(i); });
+
+    node.append('text')
+        .attr('dy', '.2em')
+        .style('text-anchor', 'middle')
+        .text(function(d) { return d.data[0]; })
+        .attr('font-family', 'sans-serif')
+        .attr('font-size', function(d) { return d.r / 2; })
+        .attr('fill', "black");
+}
+
+function load_startup_fund_data(data) {
+    country_data = data.filter(function(d) {
+        if (d.country_code == g_country_code &&
+            d.founded_year >= g_year_min_cur &&
+            d.founded_year <= g_year_max_cur &&
+            d.funding_total_usd != NaN) {
+            return d;
+        }
+    });
+
+    g_fund_total_by_state = d3.rollups(country_data,
+       v => d3.sum(v, d => d.funding_total_usd),
+       d => d.state_code).sort((a,b) => b[1] - a[1]);
+    console.log('g_fund_total_by_state', g_fund_total_by_state);
+
+    g_market_topN = d3.rollups(country_data,
+        v => d3.sum(v, d => d.funding_total_usd),
+        d => d.market);
+    console.log(g_market_topN.sort((a,b) => b[1] - a[1]).slice(0, 20));
+}
+
+async function update_charts() {
+    const data = await d3.csv('https://myguitar.github.io/public/datasets/investments_VC.csv');
+
+    load_startup_fund_data(data);
+
+    display_state_data();
+
+    display_market_data();
+}
+
+function init() {
+    var year_range = d3.range(g_year_min, g_year_max + 1, 1);
+
+    d3.select('#year_start')
+        .selectAll('year_start')
+        .data(year_range)
+        .enter()
+        .append('option')
+        .text(function(d) { return d; })
+        .attr('value', function (d) { return d; })
+        .property('selected', function(d) { return d === g_year_min_cur; });
+
+    d3.select('#year_start').on('change', function(d) {
+            g_year_min_cur = d3.select(this).property('value');
+            console.log('g_year_min_cur', g_year_min_cur);
+            if (g_year_min_cur > g_year_max_cur) {
+                g_year_max_cur = g_year_min_cur;
+                d3.select('#year_end').property('value', g_year_max_cur);
+            }
+        });
+
+    d3.select('#year_end')
+        .selectAll('year_end')
+        .data(year_range)
+        .enter()
+        .append('option')
+        .text(function(d) { return d; })
+        .attr('value', function (d) { return d; })
+        .property('selected', function(d) { return d === g_year_max_cur; });
+
+    d3.select('#year_end').on('change', function(d) {
+            g_year_max_cur = d3.select(this).property('value');
+            console.log('g_year_max_cur', g_year_max_cur);
+            if (g_year_min_cur > g_year_max_cur) {
+                g_year_min_cur = g_year_max_cur;
+                d3.select('#year_start').property('value', g_year_min_cur);
+            }
+        });
+
+    update_charts();
+}
+</script>
+</body>
+</html>
