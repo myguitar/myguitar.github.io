@@ -1,12 +1,20 @@
 <html>
+<header>
+    <h1 style="text-align:center">USA Startup Funding Total in USD (2000 - 2014)</h1>
+    <h2 style="text-align:center">& Startup Market Top20 on a selected State</h2>
+</header>
 <script src='https://d3js.org/d3.v5.min.js'></script>
 <script src="https://d3js.org/d3-array.v2.min.js"></script>
 <script src="https://d3js.org/d3-scale-chromatic.v0.3.min.js"></script>
 <body onload='init()'>
-    <div id='interactive'>
+    <div id='interactive' style="text-align:center">
         <label>Start Year</label><select id='year_start'></select>
         <label>End Year</label><select id='year_end'></select>
-        <button onclick='update_charts()'>Update</button>
+        <button id='update_button'>Update</button>
+    </div>
+    <div id='description' style="text-align:center">
+        <b><p></p></b>
+        <label>Click State Circles or Market Bars for more details</label>
     </div>
     <div id='charts'>
         <svg id='bubble_chart'></svg>
@@ -23,7 +31,9 @@ var g_year_max = 2014;
 var g_year_min_cur = g_year_min;
 var g_year_max_cur = g_year_max;
 var g_country_code = 'USA';
-var g_market_top_max = 30;
+var g_state_cur = 'ALL'
+var g_market_cur = 'ALL'
+var g_market_top_max = 20;
 
 var g_fund_total_by_state;
 var g_market_topN;
@@ -39,11 +49,11 @@ function display_market_data() {
     console.log('market_top_max', market_top_max)
     console.log('fund_max', fund_max);
 
-    var margin = ({top: 30, left: 120, bottom: 0, right: 0});
+    var margin = ({top: 30, left: 170, bottom: 0, right: 0});
     var width = g_width;// - margin.left - margin.right;
     var height = g_height;// - margin.top - margin.bottom;
     var x_scale = d3.scaleLinear().domain([0, fund_max]).range([margin.left, width - margin.right]);
-    var y_scale = d3.scaleBand().domain(d3.range(g_market_top_max)).range([margin.top, height - margin.bottom]).padding(0.1);
+    var y_scale = d3.scaleBand().domain(d3.range(market_top_max.length)).range([margin.top, height - margin.bottom]).padding(0.1);
 
     //
     // Bar chart
@@ -56,7 +66,8 @@ function display_market_data() {
         .attr('y', (d, i) => y_scale(i))
         .attr('height', y_scale.bandwidth())
         .attr('width', d => x_scale(d[1]) - x_scale(0))
-        .attr("fill", function(d, i) { return g_color_scale(i); });
+        .attr("fill", function(d, i) { return g_color_scale(i); })
+        .on('click', function(d) { g_market_cur = d[0]; g_state_cur = 'ALL'; update_charts(); });
 
     //
     // x, y axis
@@ -66,7 +77,7 @@ function display_market_data() {
         .call(d3.axisTop(x_scale).ticks(10, "s"))
     svg.append('g')
         .attr('transform', "translate(" + margin.left + ", 0)")
-        .call(d3.axisLeft(y_scale).tickFormat(i => market_top_max[i][0]))
+        .call(d3.axisLeft(y_scale).tickFormat(i => market_top_max[i][0] == "" ? "Unknown" : market_top_max[i][0]))
 
     //
     // Print total fund usd
@@ -87,7 +98,8 @@ function display_market_data() {
         .call(text => text.filter(d => x_scale(d[1]) - x_scale(0) < 80)
         .attr('dx', +4)
         .attr('fill', "black")
-        .attr('text-anchor', 'start'));
+        .attr('text-anchor', 'start'))
+        .on('click', function(d) { g_market_cur = d[0]; g_state_cur = 'ALL'; update_charts(); });
 }
 
 function display_state_data() {
@@ -115,7 +127,8 @@ function display_state_data() {
 
     node.append('circle')
         .attr('r', d => d.r)
-        .style('fill', function(d, i) { return g_color_scale(i); });
+        .style('fill', function(d, i) { return g_color_scale(i); })
+        .on('click', function(d) { g_state_cur = d.data[0]; g_market_cur = 'ALL'; update_charts(); });
 
     node.append('text')
         .attr('dy', '.2em')
@@ -123,25 +136,41 @@ function display_state_data() {
         .text(function(d) { return d.data[0]; })
         .attr('font-family', 'sans-serif')
         .attr('font-size', function(d) { return d.r / 2; })
-        .attr('fill', "black");
+        .attr('fill', 'white')
+        .on('click', function(d) { g_state_cur = d.data[0]; g_market_cur = 'ALL'; update_charts(); });
 }
 
 function load_startup_fund_data(data) {
-    country_data = data.filter(function(d) {
+    state_data = data.filter(function(d) {
         if (d.country_code == g_country_code &&
             d.founded_year >= g_year_min_cur &&
             d.founded_year <= g_year_max_cur &&
-            d.funding_total_usd != NaN) {
+            (g_market_cur == 'ALL' || d.market == g_market_cur) &&
+            d.funding_total_usd != 0) {
             return d;
         }
     });
 
-    g_fund_total_by_state = d3.rollups(country_data,
+    market_data = data.filter(function(d) {
+        if (d.country_code == g_country_code &&
+            d.founded_year >= g_year_min_cur &&
+            d.founded_year <= g_year_max_cur &&
+            (g_state_cur == 'ALL' || d.state_code == g_state_cur) &&
+            d.funding_total_usd != 0) {
+            return d;
+        }
+    });
+
+    d3.select('#description')
+        .selectAll('p')
+        .text("Year: " + g_year_min_cur + " - " + g_year_max_cur + ", State: " + g_state_cur + ", Market: " + g_market_cur);
+
+    g_fund_total_by_state = d3.rollups(state_data,
        v => d3.sum(v, d => d.funding_total_usd),
        d => d.state_code).sort((a,b) => b[1] - a[1]);
     console.log('g_fund_total_by_state', g_fund_total_by_state);
 
-    g_market_topN = d3.rollups(country_data,
+    g_market_topN = d3.rollups(market_data,
         v => d3.sum(v, d => d.funding_total_usd),
         d => d.market);
     console.log(g_market_topN.sort((a,b) => b[1] - a[1]).slice(0, 20));
@@ -160,6 +189,9 @@ async function update_charts() {
 function init() {
     var year_range = d3.range(g_year_min, g_year_max + 1, 1);
 
+    //
+    // Start year dropdown
+    //
     d3.select('#year_start')
         .selectAll('year_start')
         .data(year_range)
@@ -178,6 +210,9 @@ function init() {
             }
         });
 
+    //
+    // End year dropdown
+    //
     d3.select('#year_end')
         .selectAll('year_end')
         .data(year_range)
@@ -196,6 +231,14 @@ function init() {
             }
         });
 
+    //
+    // Update button
+    //
+    d3.select('#update_button').on('click', function(d) { g_state_cur = 'ALL'; g_market_cur = 'ALL'; update_charts(); });
+
+    //
+    // Display initial charts
+    //
     update_charts();
 }
 </script>
