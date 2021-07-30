@@ -43,6 +43,7 @@ var g_state_cur = 'ALL'
 var g_market_cur = 'ALL'
 var g_market_top_max = 20;
 
+var g_all_year_data;
 var g_fund_total_by_year;
 var g_fund_total_by_state;
 var g_market_topN;
@@ -180,12 +181,44 @@ function display_year_data() {
     svg.selectAll('g').remove();
 
     var margin = ({top: 50, left: 50, bottom: 50, right: 0});
-    var x_scale = d3.scaleLinear().domain([d3.min(g_fund_total_by_year, d => d[0]), d3.max(g_fund_total_by_year, d => d[0])]).range([margin.left, width - margin.right - margin.left]);
-    var y_scale = d3.scaleLinear().domain([0, d3.max(g_fund_total_by_year, d => d[1])]).range([height - margin.bottom, margin.top]);
+    var x_scale = d3.scaleLinear().domain([d3.min(g_all_year_data, d => d[0]), d3.max(g_all_year_data, d => d[0])]).range([margin.left, width - margin.right - margin.left]);
+    var y_scale = d3.scaleLinear().domain([0, d3.max(g_all_year_data, d => d[1])]).range([height - margin.bottom, margin.top]);
 
     var line = d3.line()
         .x(function (d) { return x_scale(d[0]); })
         .y(function (d) { return y_scale(d[1]); })
+
+    if (g_all_year_data != g_fund_total_by_year) {
+        svg.append('g')
+            .append('path')
+            .datum(g_all_year_data)
+            .attr('fill', 'none')
+            .attr('stroke', '#dddddd')
+            .attr('stroke-width', 2)
+            .attr('d', line);
+
+        svg.append('g')
+            .selectAll('dot')
+            .data(g_all_year_data)
+            .enter()
+            .append('circle')
+            .attr('cx', function(d) { return x_scale(d[0]); } )
+            .attr('cy', function(d) { return y_scale(d[1]); } )
+            .attr('r', 5)
+            .attr('fill', '#dddddd')
+            .append('title')
+            .text(function(d) { return '$' + g_format_usd(d[1]); });
+
+        svg.append('g')
+            .append('text')
+            .attr('x', x_scale(g_all_year_data[0][0]) + 10)
+            .attr('y', y_scale(g_all_year_data[0][1]) + 10)
+            .attr('fill', '#999999')
+            .attr('text-anchor', 'start')
+            .attr('font-family', 'sans-serif')
+            .style('font-size', '10px')
+            .text("Funding total of all States & Markets");
+    }
 
     svg.append('g')
         .append('path')
@@ -219,6 +252,15 @@ function display_year_data() {
 }
 
 function load_startup_fund_data(data) {
+    all_data = data.filter(function(d) {
+        if (d.country_code == g_country_code &&
+            d.founded_year >= g_year_min_cur &&
+            d.founded_year <= g_year_max_cur &&
+            d.funding_total_usd != 0) {
+            return d;
+        }
+    });
+
     year_data = data.filter(function(d) {
         if (d.country_code == g_country_code &&
             d.founded_year >= g_year_min_cur &&
@@ -256,8 +298,17 @@ function load_startup_fund_data(data) {
 
     g_fund_total_by_year = d3.rollups(year_data,
        v => d3.sum(v, d => d.funding_total_usd),
-       d => d.founded_year).sort((a,b) => a[0] - b[0]);;
-    console.log('g_fund_total_by_year', g_fund_total_by_year);
+       d => d.founded_year).sort((a,b) => a[0] - b[0]);
+    // console.log('g_fund_total_by_year', g_fund_total_by_year);
+
+    if (g_state_cur == 'ALL' && g_market_cur == 'ALL') {
+        g_all_year_data = g_fund_total_by_year;
+    } else {
+        g_all_year_data = d3.rollups(all_data,
+            v => d3.sum(v, d => d.funding_total_usd),
+            d => d.founded_year).sort((a,b) => a[0] - b[0]);
+            // console.log('g_all_year_data', g_all_year_data);
+    }
 
     g_fund_total_by_state = d3.rollups(state_data,
        v => d3.sum(v, d => d.funding_total_usd),
