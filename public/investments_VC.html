@@ -19,7 +19,7 @@
         <svg id='year_chart'></svg>
     </div>
     <div style="text-align:center">
-        <label><br><b>Click State Circles or Market Bars for more details</b></label>
+        <label><br><b>Click State Circles or Market Bars for more details</b><br><br></label>
     </div>
     <div id='charts' style="text-align:center">
         <svg id='bubble_chart'></svg>
@@ -57,7 +57,7 @@ function display_market_data() {
     fund_max = d3.max(g_market_topN, d => d[1])
     // console.log('fund_max', fund_max);
 
-    var margin = ({top: 30, left: 170, bottom: 0, right: 0});
+    var margin = ({top: 50, left: 170, bottom: 0, right: 0});
     var width = g_width;// - margin.left - margin.right;
     var height = g_height;// - margin.top - margin.bottom;
     var x_scale = d3.scaleLinear().domain([0, fund_max]).range([margin.left, width - margin.right]);
@@ -110,11 +110,20 @@ function display_market_data() {
         .attr('text-anchor', 'start'))
         .on('click', function(d) { g_market_cur = d[0]; update_charts(); });
         // .on('click', function(d) { g_market_cur = d[0]; g_state_cur = 'ALL'; update_charts(); });
+
+    svg.append('g')
+        .append('text')
+        .attr('x', (g_width / 2))
+        .attr('y', 15)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', 'sans-serif')
+        .style('font-size', '20px')
+        .text("Top20 Markets in " + g_state_cur + " State");
 }
 
 function display_state_data() {
     var pack_layout = d3.pack()
-        .size([g_width, g_height])
+        .size([g_width, g_height - 20])
         .padding(0.1);
 
     var nodes = pack_layout(d3.hierarchy({children: g_fund_total_by_state}).sum(d => d[1]));
@@ -129,7 +138,7 @@ function display_state_data() {
     var node = svg.selectAll('g')
         .data(nodes.leaves())
         .join('g')
-        .attr('transform', d => `translate(${d.x + 1}, ${d.y + 1})`);
+        .attr('transform', d => `translate(${d.x + 1}, ${d.y + 20})`);
     // console.log('node', node);
 
     node.append('title')
@@ -150,6 +159,15 @@ function display_state_data() {
         .attr('fill', 'white')
         .on('click', function(d) { g_state_cur = d.data[0]; update_charts(); });
         // .on('click', function(d) { g_state_cur = d.data[0]; g_market_cur = 'ALL'; update_charts(); });
+
+    svg.append('g')
+        .append('text')
+        .attr('x', (g_width / 2))
+        .attr('y', 15)
+        .attr('text-anchor', 'middle')
+        .attr('font-family', 'sans-serif')
+        .style('font-size', '20px')
+        .text("Funding Total in " + g_market_cur + " Market");
 }
 
 function display_year_data() {
