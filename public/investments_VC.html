@@ -45,6 +45,8 @@ var g_market_cur = 'ALL'
 var g_market_top_max = 20;
 
 var g_all_year_data;
+var g_all_year_state_data;
+var g_all_year_market_data;
 var g_fund_total_by_year;
 var g_fund_total_by_state;
 var g_market_topN;
@@ -120,7 +122,7 @@ function display_market_data() {
         .attr('text-anchor', 'middle')
         .attr('font-family', 'sans-serif')
         .style('font-size', '20px')
-        .text("Top20 Markets in " + g_state_cur + " State");
+        .text("Top 20 Markets in " + g_state_cur + " State");
 }
 
 function display_state_data() {
@@ -172,9 +174,43 @@ function display_state_data() {
         .text("Funding Total in " + g_market_cur + " Market");
 }
 
+function display_annotations(svg, x_scale, y_scale, line, data, text, index) {
+    svg.append('g')
+        .append('path')
+        .datum(data)
+        .attr('fill', 'none')
+        .attr('stroke', g_color_scale(index))
+        .attr('stroke-width', 1)
+        .attr('d', line);
+
+    svg.append('g')
+        .selectAll('dot')
+        .data(data)
+        .enter()
+        .append('circle')
+        .attr('cx', function(d) { return x_scale(d[0]); } )
+        .attr('cy', function(d) { return y_scale(d[1]); } )
+        .attr('r', 5)
+        .attr('fill', '#dddddd')
+        .append('title')
+        .text(function(d) { return '$' + g_format_usd(d[1]); });
+
+    if (text != NaN) {
+        svg.append('g')
+            .append('text')
+            .attr('x', x_scale(d3.max(data, d => d[0])))
+            .attr('y', 50 + index * 20)
+            .attr('fill', g_color_scale(index))
+            .attr('text-anchor', 'end')
+            .attr('font-family', 'sans-serif')
+            .style('font-size', '10px')
+            .text(text);
+    }
+}
+
 function display_year_data() {
     var width = 800;
-    var height = 400;
+    var height = 500;
 
     var svg = d3.select('#year_chart')
         .attr('width', width)
@@ -190,35 +226,23 @@ function display_year_data() {
         .y(function (d) { return y_scale(d[1]); })
 
     if (g_all_year_data != g_fund_total_by_year) {
-        svg.append('g')
-            .append('path')
-            .datum(g_all_year_data)
-            .attr('fill', 'none')
-            .attr('stroke', '#dddddd')
-            .attr('stroke-width', 2)
-            .attr('d', line);
+        if (g_state_cur != 'ALL' && g_market_cur != 'ALL') {
+            var a = d3.max(g_all_year_state_data, d => d[1])
+            var b = d3.max(g_all_year_market_data, d => d[1])
+            var fund_max = (a > b) ? a : b
 
-        svg.append('g')
-            .selectAll('dot')
-            .data(g_all_year_data)
-            .enter()
-            .append('circle')
-            .attr('cx', function(d) { return x_scale(d[0]); } )
-            .attr('cy', function(d) { return y_scale(d[1]); } )
-            .attr('r', 5)
-            .attr('fill', '#dddddd')
-            .append('title')
-            .text(function(d) { return '$' + g_format_usd(d[1]); });
+            x_scale = d3.scaleLinear().domain([d3.min(g_all_year_data, d => d[0]), d3.max(g_all_year_data, d => d[0])]).range([margin.left, width - margin.right - margin.left]);
+            y_scale = d3.scaleLinear().domain([0, fund_max]).range([height - margin.bottom, margin.top]);
 
-        svg.append('g')
-            .append('text')
-            .attr('x', x_scale(g_all_year_data[0][0]) + 10)
-            .attr('y', y_scale(g_all_year_data[0][1]) + 10)
-            .attr('fill', '#999999')
-            .attr('text-anchor', 'start')
-            .attr('font-family', 'sans-serif')
-            .style('font-size', '10px')
-            .text("Funding total of all States & Markets");
+            // State data annotation
+            display_annotations(svg, x_scale, y_scale, line, g_all_year_state_data, "Funding total in " + g_state_cur + " State", 1);
+
+            // Market data annotation
+            display_annotations(svg, x_scale, y_scale, line, g_all_year_market_data, "Funding total in " + g_market_cur + " Market", 2);
+        } else {
+            // ALL States & All Markets annotation
+            display_annotations(svg, x_scale, y_scale, line, g_all_year_data, "Funding total in ALL States and ALL Markets", 0);
+        }
     }
 
     svg.append('g')
@@ -309,6 +333,14 @@ function load_startup_fund_data(data) {
             v => d3.sum(v, d => d.funding_total_usd),
             d => d.founded_year).sort((a,b) => a[0] - b[0]);
             // console.log('g_all_year_data', g_all_year_data);
+
+        g_all_year_state_data = d3.rollups(state_data,
+            v => d3.sum(v, d => d.funding_total_usd),
+            d => d.founded_year).sort((a,b) => a[0] - b[0]);
+
+        g_all_year_market_data = d3.rollups(market_data,
+            v => d3.sum(v, d => d.funding_total_usd),
+            d => d.founded_year).sort((a,b) => a[0] - b[0]);
     }
 
     g_fund_total_by_state = d3.rollups(state_data,
