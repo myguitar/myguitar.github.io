@@ -2,7 +2,7 @@
 <header>
     <title>Startup Funding Total in USA (2000 - 2014)</title>
     <h1 style="text-align:center">Startup Funding Total in USA (2000 - 2014)</h1>
-    <h1 style="text-align:center">Startup Funding volume in States & Startup Market Top20</h1>
+    <h1 style="text-align:center">Startup Funding Total in States & Top 20 Startup Market Categories</h1>
 </header>
 <script src='https://d3js.org/d3.v5.min.js'></script>
 <script src="https://d3js.org/d3-array.v2.min.js"></script>
@@ -190,22 +190,20 @@ function display_annotations(svg, x_scale, y_scale, line, data, text, index) {
         .append('circle')
         .attr('cx', function(d) { return x_scale(d[0]); } )
         .attr('cy', function(d) { return y_scale(d[1]); } )
-        .attr('r', 5)
-        .attr('fill', '#dddddd')
+        .attr('r', 3)
+        .attr('fill', g_color_scale(index))
         .append('title')
         .text(function(d) { return '$' + g_format_usd(d[1]); });
 
-    if (text != NaN) {
-        svg.append('g')
-            .append('text')
-            .attr('x', x_scale(d3.max(data, d => d[0])))
-            .attr('y', 50 + index * 20)
-            .attr('fill', g_color_scale(index))
-            .attr('text-anchor', 'end')
-            .attr('font-family', 'sans-serif')
-            .style('font-size', '10px')
-            .text(text);
-    }
+    svg.append('g')
+        .append('text')
+        .attr('x', svg.style('width'))
+        .attr('y', 50 + index * 20)
+        .attr('fill', g_color_scale(index))
+        .attr('text-anchor', 'end')
+        .attr('font-family', 'sans-serif')
+        .style('font-size', '10px')
+        .text(text);
 }
 
 function display_year_data() {
@@ -217,8 +215,8 @@ function display_year_data() {
         .attr('height', height);
     svg.selectAll('g').remove();
 
-    var margin = ({top: 50, left: 50, bottom: 50, right: 0});
-    var x_scale = d3.scaleLinear().domain([d3.min(g_all_year_data, d => d[0]), d3.max(g_all_year_data, d => d[0])]).range([margin.left, width - margin.right - margin.left]);
+    var margin = ({top: 50, left: 50, bottom: 50, right: 20});
+    var x_scale = d3.scaleLinear().domain([d3.min(g_all_year_data, d => d[0]), d3.max(g_all_year_data, d => d[0])]).range([margin.left, width - margin.right]);
     var y_scale = d3.scaleLinear().domain([0, d3.max(g_all_year_data, d => d[1])]).range([height - margin.bottom, margin.top]);
 
     var line = d3.line()
@@ -231,17 +229,17 @@ function display_year_data() {
             var b = d3.max(g_all_year_market_data, d => d[1])
             var fund_max = (a > b) ? a : b
 
-            x_scale = d3.scaleLinear().domain([d3.min(g_all_year_data, d => d[0]), d3.max(g_all_year_data, d => d[0])]).range([margin.left, width - margin.right - margin.left]);
+            x_scale = d3.scaleLinear().domain([d3.min(g_all_year_data, d => d[0]), d3.max(g_all_year_data, d => d[0])]).range([margin.left, width - margin.right]);
             y_scale = d3.scaleLinear().domain([0, fund_max]).range([height - margin.bottom, margin.top]);
 
             // State data annotation
-            display_annotations(svg, x_scale, y_scale, line, g_all_year_state_data, "Funding total in " + g_state_cur + " State", 1);
+            display_annotations(svg, x_scale, y_scale, line, g_all_year_market_data, "Funding Total in " + g_state_cur + " State", 1);
 
             // Market data annotation
-            display_annotations(svg, x_scale, y_scale, line, g_all_year_market_data, "Funding total in " + g_market_cur + " Market", 2);
+            display_annotations(svg, x_scale, y_scale, line, g_all_year_state_data, "Funding Total in " + g_market_cur + " Market", 2);
         } else {
             // ALL States & All Markets annotation
-            display_annotations(svg, x_scale, y_scale, line, g_all_year_data, "Funding total in ALL States and ALL Markets", 0);
+            display_annotations(svg, x_scale, y_scale, line, g_all_year_data, "Funding total in ALL States and ALL Markets", 1);
         }
     }
 
@@ -249,7 +247,7 @@ function display_year_data() {
         .append('path')
         .datum(g_fund_total_by_year)
         .attr('fill', 'none')
-        .attr('stroke', 'blue')
+        .attr('stroke', g_color_scale(0))
         .attr('stroke-width', 4)
         .attr('d', line);
 
@@ -260,10 +258,20 @@ function display_year_data() {
         .append('circle')
         .attr('cx', function(d) { return x_scale(d[0]); } )
         .attr('cy', function(d) { return y_scale(d[1]); } )
-        .attr('r', 5)
-        .attr('fill', 'red')
+        .attr('r', 7)
+        .attr('fill', g_color_scale(0))
         .append('title')
         .text(function(d) { return '$' + g_format_usd(d[1]); });
+
+    svg.append('g')
+        .append('text')
+        .attr('x', svg.style('width'))
+        .attr('y', 50)
+        .attr('fill', g_color_scale(0))
+        .attr('text-anchor', 'end')
+        .attr('font-family', 'sans-serif')
+        .style('font-size', '10px')
+        .text("Funding total in " + g_state_cur + " State & " + g_market_cur + " Market");
 
     //
     // x, y axis
